@@ -1,0 +1,318 @@
+Create Job:
+curl -vvv -X POST @config.xml -H "Content-Type: text/xml" "http://10.110.18.40:8080/createItem?name=tokentest"
+curl -vvv -X POST @config.xml -H "Content-Type: text/xml" "http://10.164.17.34:8888/createItem?name=process_image"
+
+Run a Job: 
+curl -X POST http://10.110.13.134:8080/job/jobromcmd/build --user guyingyan:gu123456a? 
+get Job status: 
+curl --silent http://10.110.13.134:8080/job/jobromcmd/lastBuild/api/json
+get buildID:
+curl --silent http://10.110.13.134:8080/job/jobromcmd/lastBuild/buildNumber
+Run with Parameter:
+curl -X POST http://10.110.13.134:8080/job/jobromcmd/buildWithParameters -d port=8090
+curl -X POST http://10.110.13.134:8080/job/jobromcmd/buildWithParameters -d name=ygutest -d port=999
+n=nameTest
+curl -X POST http://10.110.13.134:8080/job/jobromcmd/buildWithParameters -d name=$n -d port=999
+
+Get the lastBuild result:
+curl http://10.110.13.134:8080/job/jobromcmd/lastBuild/api/xml?pretty=true\&tree=result
+
+
+Delete Job: 
+
+curl -X POST http://10.110.13.134:8080/job/jobromcmd/doDelete
+
+Copy Job:
+
+curl -vvv -X POST -d -u admin:admin @config.xml -H "Content-Type: text/xml" "http://10.164.17.34:8080/createItem?name=1111&mode=copy&from=base"
+
+Get Build info with json:
+http://10.110.13.134:8080/job/jobromcmd/5/api/json?pretty=true
+curl 'http://10.110.13.134:8080/job/jobromcmd/5/api/json?pretty=true\&tree=actions\[lastBuiltRevision\[branch\[SHA1,name\]\]\]'
+curl 'http://10.110.13.134:8080/job/jobromcmd/5/api/json?pretty=true\&tree=actions\[lastBuiltRevision\[*\]\]'
+
+
+
+Jenkins Plugin:
+http://10.110.18.40:10080/inspursoft/board/src/dev/make/dev/container/jenkins
+
+
+curl -X GET http://10.110.13.134:8080/job/jobromcmd/config.xml?pretty=true\&tree=condition
+
+------------------------------
+
+
+pipeline{
+stages{
+agent any
+stage('build'){
+steps{
+echo 'test'
+}
+}
+}
+}
+
+
+node {
+    dir('/home') {
+        stage('Git') {
+            if(fileExists('board')) {
+                dir('/home/board') {
+                    sh 'git fetch origin'
+                    sh 'git checkout master'
+                    sh 'git pull'
+                }
+                
+            } else {
+                sh 'git clone http://10.110.18.40:10080/inspursoft/board.git board'
+            }
+        }
+    }
+}
+
+
+git remote add origin http://10.110.18.40:10080/guyingyan/kvm.git
+git push -u origin master
+
+
+
+pipeline {
+    
+   agent any
+   stages{
+       stage('demo'){
+           steps{
+               echo 'deme........'
+           }
+       }
+       stage('parallel start .....'){
+       parallel {
+       stage('ls') {
+           steps{
+               sh "ls"
+           }
+       }
+       stage('branch A') {
+           steps{
+               echo 'Start branch A'
+               sleep 10
+               echo 'End Branch A>>>>>>'
+           }
+       }
+       stage('branch B') {
+           steps{
+               echo 'Start Branch B.....'
+               sleep 10
+               echo 'End Branch B>>>>>>'
+           }
+       }
+       stage('Branch C') {
+           steps{
+               echo 'Start Branch C.....'
+               sleep 10
+               echo 'End Branch C>>>>>>'
+           }
+       }
+       }
+       }
+       
+   }
+   
+}
+
+
+node('10.110.25.227')
+{stage('Git') {
+        sh '''
+        cd /home/test/kvmBackup
+        python addnode.py http://10.110.18.40:8080
+        sleep 5
+        '''
+    }
+}
+node('kvmNode'){
+    stage('test') {
+        sh '''
+        systemctl start docker
+        setenforce 0
+
+        docker pull 10.110.18.177/library/mysql:5.6
+        docker tag 10.110.18.177/library/mysql:5.6 mysql:5.6
+        docker pull 10.110.18.177/library/golang:1.8.1
+        docker tag 10.110.18.177/library/golang:1.8.1 golang:1.8.1
+        docker pull 10.110.18.177/library/golang:1.8.3-alpine3.5
+        docker tag 10.110.18.177/library/golang:1.8.3-alpine3.5 golang:1.8.3-alpine3.5
+        docker pull 10.110.18.177/library/openldap:1.1.11
+        docker pull 10.110.18.177/library/golang:1.8.3
+        docker tag 10.110.18.177/library/golang:1.8.3 golang:1.8.3
+        docker pull 10.110.18.177/board/board-gogits:latest	
+        docker tag 10.110.18.177/board/board-gogits:latest board-gogits:latest
+
+
+        cd /tmp
+        rm -rf scripts
+        git clone http://10.110.18.40:10080/guyingyan/scripts.git
+
+        cd /tmp/scripts/scripts
+
+        ./prepare.sh $BUILD_URL $WORKSPACE $head_repo_url $head_branch $base_repo_url $base_branch $comments_url
+
+        cd $WORKSPACE/src/git/inspursoft/board/tests
+
+        ./jenkinsrun.sh $BUILD_URL $WORKSPACE $head_repo_url $head_branch $base_repo_url $base_branch $comments_url $JOB_URL $JENKINS_URL
+
+        '''
+    }
+}
+node('10.110.25.227')
+{stage('Git') {
+        sh '''
+        cd /home/test/kvmBackup
+        python deletenode.py http://10.110.18.40:8080
+        sleep 5
+        '''
+    }
+}
+
+
+node {
+    stage('Git') {
+        def input_result = input message: 'input branch name for this job', ok: 'ok', parameters: [string(defaultValue: 'master', description: 'branch name', name: 'branch'), string(defaultValue: '', description: 'commit to switch', name: 'commit')]
+
+        sh "echo ${input_result.branch}"
+        sh "echo ${input_result.commit}"
+    }
+}
+
+
+pipeline {
+    
+   agent any
+   stages{
+       stage('demo'){
+           steps{
+               echo 'deme........'
+           }
+       }
+       stage('parallel start .....'){
+       parallel {
+       stage('ls') {
+           steps{
+               sh "ls"
+           }
+       }
+       stage('branch A') {
+           steps{
+               echo 'Start branch A'
+               sleep 10
+               echo 'End Branch A>>>>>>'
+           }
+       }
+       stage('branch B') {
+           steps{
+               echo 'Start Branch B.....'
+               sleep 10
+               echo 'End Branch B>>>>>>'
+           }
+       }
+       stage('Branch C') {
+           steps{
+               echo 'Start Branch C.....'
+               sleep 10
+               echo 'End Branch C>>>>>>'
+           }
+       }
+       }
+       }
+       
+   }
+   
+}
+------------------------------------------------------------
+def slave = "10.110.25.227"
+def tmp = "${params.test}"
+
+
+node(tmp)
+
+{stage('add kvm node') {
+        sh '''
+        cd /home/test/kvm
+   
+        '''
+    }
+}
+
+
+------------------------------------------------------------
+pipeline {
+    agent any
+    environment {
+        ccc='ttttttttttttttttttttt'
+    }
+    parameters {
+        string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
+    }
+    stages {
+        stage('this is a test') {
+            
+            steps {
+                echo "hello"
+                echo "Hello!!!!!!!!!!!!!!!!"
+            script {
+                if("${params.PERSON}"=="T")
+                {
+                    echo "------------------"
+                    echo "Hello ${params.PERSON}"
+                }
+                else
+                {
+                    echo "this step1 need not run"
+                }
+                if("${params.PERSON}"=="test")
+                {
+                    echo "-----------test-------"
+                    echo "Hello ${params.PERSON}"
+                }
+                else
+                {
+                    echo "the step2 need not run"
+                }
+            }
+            }
+            
+        }
+        stage('test stage'){
+            steps{
+                echo "test.....1"
+            }
+        }
+    }
+}
+
+
+
+node {
+    environment {cc="/home"}
+    dir('./') {
+        stage('Git') {
+           sh '''
+           cd $WORKSPACE
+           ls
+           
+           if [ -d "/home/temp" ]; then
+           echo "xiiiiiiiiiiiii"
+           else
+           echo "rrrrrrrrrrrrrr"
+           ls "/home"
+           fi
+           '''
+          
+        }
+        
+        stage('jekins') {
+            sh 'echo ....................$WORKSPACE'
+        }
+    }
+}
