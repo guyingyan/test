@@ -1,0 +1,25 @@
+environment{
+    nodeName=''
+}
+
+node('10.110.25.227')
+{stage('add kvm node') {
+        sh '''
+        cd /home/test/kvm
+        #python kvmnode.py http://10.110.25.204:8080 
+        echo "--------------------------------"
+        sleep 3
+        '''
+        nodeName=sh(returnStdout: true, script: "/home/test/kvm/r.sh").trim()
+    }
+}
+
+node(nodeName)
+{stage('add kvm node') {
+        sh '''
+        echo "test........"
+        '''
+   
+    }
+
+}
