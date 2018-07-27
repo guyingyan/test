@@ -1,7 +1,11 @@
 kvm add nat
 ------------------------------------------
 iptables -t nat -A PREROUTING -d 10.110.25.199 -p tcp -m tcp --dport 20001 -j DNAT --to-destination 192.168.122.230:22    
+
+
+---
 iptables -I FORWARD -p tcp -d 192.168.122.0/24 -j ACCEPT
+iptables -t nat -I POSTROUTING -s 192.168.122.0/24 ! -o virbr0 -j MASQUERADE
 
 
 connect method
