@@ -1,0 +1,9 @@
+kvm add nat
+------------------------------------------
+iptables -t nat -A PREROUTING -d 10.110.25.199 -p tcp -m tcp --dport 20001 -j DNAT --to-destination 192.168.122.230:22    
+iptables -I FORWARD -p tcp -d 192.168.122.0/24 -j ACCEPT
+
+
+connect method
+-------------------
+ssh 10.110.25.199 -p 20001
